@@ -24,6 +24,19 @@ type KeyRange struct {
 	stop  []byte
 }
 
+type TXSave struct {
+	root  uint64
+	reads []KeyRange
+}
+
+func (tx *KVTX) Save(save *TXSave) {
+	save.root, save.reads = tx.pending.root, tx.reads
+}
+
+func (tx *KVTX) Revert(save *TXSave) {
+	tx.pending.root, tx.reads = save.root, save.reads
+}
+
 const (
 	FLAG_DELETED = byte(1)
 	FLAG_UPDATED = byte(2)
@@ -310,7 +323,7 @@ func (tx *KVTX) Update(req *UpdateReq) (bool, error) {
 	}
 
 	req.Added = !exists
-	req.Updated  =true
+	req.Updated = true
 	req.Old = old
 
 	return true, nil
