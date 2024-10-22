@@ -473,3 +473,30 @@ func qlSelect(req *QLSelect, tx *DBTX) (RecordIter, error) {
 func qlCreateTable(req* QLCreateTable, tx *DBTX) error {
 	return tx.TableNew(&req.Def)
 }
+
+// stmt: Insert
+func qlInsert(req *QLInsert, tx *DBTX) (uint64, uint64, error) {
+	added, updated := uint64(0), uint64(0)
+
+	for _, nodes := range  req.Values {
+		vals, err :=qlEvelMulti(Record{}, nodes)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		dbReq := DBUpdateReq{Record: Record{req.Names, vals}, Mode: req.Mode}
+		_, err = tx.Set(req.Table, &dbReq)
+		if err != nil {
+			return 0, 0, err
+		}
+
+		if dbReq.Added{
+			added++
+		}
+		if dbReq.Updated{
+			updated++
+		}
+	}
+
+	return added, updated, nil
+}
