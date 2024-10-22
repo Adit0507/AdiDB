@@ -41,6 +41,14 @@ func (db *DB) Abort(tx *DBTX) {
 	db.kv.Abort(&tx.kv)
 }
 
+func (tx *DBTX) Save(save *TXSave) {
+	tx.kv.Save(save)
+}
+
+func (tx*DBTX) Revert(save *TXSave) {
+	tx.kv.Revert(save)
+}
+
 type TableDef struct {
 	Name     string
 	Types    []uint32 //col type

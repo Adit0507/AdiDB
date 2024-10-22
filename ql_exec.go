@@ -565,7 +565,7 @@ func qlUpdate(req *QLUPdate, tx *DBTX) (uint64, error) {
 		}
 
 		// perform updtae
-		dbReq :=DBUpdateReq{Record: rec, Mode: MODE_UPDATE_ONLY}
+		dbReq := DBUpdateReq{Record: rec, Mode: MODE_UPDATE_ONLY}
 		if _, err := tx.Set(req.Table, &dbReq); err != nil {
 			return 0, err
 		}
@@ -576,4 +576,39 @@ func qlUpdate(req *QLUPdate, tx *DBTX) (uint64, error) {
 	}
 
 	return 0, nil
+}
+
+type QLResult struct {
+	Records RecordIter
+	Added   uint64
+	Updated uint64
+	Deleted uint64
+}
+
+// execute a single statement
+func qlExec(tx *DBTX, stmt interface{}) (res QLResult, err error) {
+	save := TXSave{}
+	tx.Save(&save)
+
+	switch req := stmt.(type) {
+	case *QLSelect:
+		res.Records, err = qlSelect(req, tx)
+	case *QLCreateTable:
+		err = qlCreateTable(req, tx)
+	case *QLInsert:
+		res.Added, res.Updated, err = qlInsert(req, tx)
+	case *QLDelete:
+		res.Deleted, err = qlDelete(req, tx)
+	case *QLUPdate:
+		res.Updated, err = qlUpdate(req, tx)
+	
+	default:
+		panic("unreachable")
+	}
+
+	if err != nil {
+		tx.Revert(&save)
+	}
+
+	return
 }
