@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 )
 
 // evaluating expressions
@@ -348,4 +350,121 @@ func (iter *qlSelectIter) Deref(rec *Record) error {
 	*rec = Record{iter.names, vals}
 
 	return nil
+}
+
+type qlScanIter struct {
+	// input
+	req *QLScan
+	sc  Scanner
+	// state
+	idx int64
+	end bool
+
+	// cached output item
+	rec Record
+	err error
+}
+
+func qlScanPull(iter *qlScanIter, rec *Record) (bool, error) {
+	if iter.idx < iter.req.Offset {
+		return false, nil
+	}
+
+	iter.sc.Deref(rec)
+	if iter.req.Filter.Type != 0 {
+		ctx := QLEvalContext{env: *rec}
+		qlEval(&ctx, iter.req.Filter)
+
+		if ctx.err != nil {
+			return false, ctx.err
+		}
+		if ctx.out.Type != TYPE_INT64 {
+			return false, errors.New("filter is not of boolean type")
+		}
+		if ctx.out.I64 == 0 {
+			return false, nil
+		}
+	}
+
+	return true, nil
+}
+
+func (iter *qlScanIter) Next() {
+	for iter.idx < iter.req.Limit && iter.sc.Valid() {
+		// check current iten
+		got, err := qlScanPull(iter, &iter.rec)
+		iter.err = err
+
+		// next item
+		iter.idx++
+		iter.sc.Next()
+		if got || err != nil {
+			return
+		}
+	}
+
+	iter.end = true
+}
+
+func (iter *qlScanIter) Valid() bool {
+	return !iter.end
+}
+
+func (iter *qlScanIter) Deref(rec *Record) error {
+	assert(iter.Valid())
+	if iter.err == nil {
+		*rec = iter.rec
+	}
+	return iter.err
+}
+
+// execute query
+func qlScan(req *QLScan, tx *DBTX) (RecordIter, error) {
+	iter := qlScanIter{req: req}
+	if err := qlScanInit(req, &iter.sc); err != nil {
+		return nil, err
+	}
+	if err := tx.Scan(req.Table, &iter.sc); err != nil {
+		return nil, err
+	}
+	iter.Next()
+	return &iter, nil
+}
+
+// stmt: select
+func qlSelect(req *QLSelect, tx *DBTX) (RecordIter, error) {
+	// records
+	records, err := qlScan(&req.QLScan, tx)
+	if err != nil {
+		return nil, err
+	}
+
+	tdef := getTableDef(tx, req.Table)
+	names, exprs := []string{}, []QLNODE{}
+	for i := range req.Names {
+		if req.Names[i] != "*" {
+			names = append(names, req.Names[i])
+			exprs = append(exprs, req.Output[i])
+		} else {
+			names = append(names, tdef.Cols...)
+			for _, col := range tdef.Cols {
+				node := QLNODE{Value: Value{Type: QL_SYM, Str: []byte(col)}}
+				exprs = append(exprs, node)
+			}
+		}
+	}
+	assert(len(names) == len(exprs))
+
+	for i := range names {
+		if names[i] != "" {
+			continue
+		}
+		if exprs[i].Type == QL_SYM {
+			names[i] = string(exprs[i].Str)
+		}else {
+			names[i] = strconv.Itoa(i)
+		}
+	}
+
+	return &qlSelectIter{iter: records, names: names, exprs: exprs}, nil
 }
