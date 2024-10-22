@@ -468,3 +468,8 @@ func qlSelect(req *QLSelect, tx *DBTX) (RecordIter, error) {
 
 	return &qlSelectIter{iter: records, names: names, exprs: exprs}, nil
 }
+
+// stmt :create table
+func qlCreateTable(req* QLCreateTable, tx *DBTX) error {
+	return tx.TableNew(&req.Def)
+}
