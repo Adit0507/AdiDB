@@ -461,7 +461,7 @@ func qlSelect(req *QLSelect, tx *DBTX) (RecordIter, error) {
 		}
 		if exprs[i].Type == QL_SYM {
 			names[i] = string(exprs[i].Str)
-		}else {
+		} else {
 			names[i] = strconv.Itoa(i)
 		}
 	}
@@ -470,7 +470,7 @@ func qlSelect(req *QLSelect, tx *DBTX) (RecordIter, error) {
 }
 
 // stmt :create table
-func qlCreateTable(req* QLCreateTable, tx *DBTX) error {
+func qlCreateTable(req *QLCreateTable, tx *DBTX) error {
 	return tx.TableNew(&req.Def)
 }
 
@@ -478,8 +478,8 @@ func qlCreateTable(req* QLCreateTable, tx *DBTX) error {
 func qlInsert(req *QLInsert, tx *DBTX) (uint64, uint64, error) {
 	added, updated := uint64(0), uint64(0)
 
-	for _, nodes := range  req.Values {
-		vals, err :=qlEvelMulti(Record{}, nodes)
+	for _, nodes := range req.Values {
+		vals, err := qlEvelMulti(Record{}, nodes)
 		if err != nil {
 			return 0, 0, err
 		}
@@ -490,10 +490,10 @@ func qlInsert(req *QLInsert, tx *DBTX) (uint64, uint64, error) {
 			return 0, 0, err
 		}
 
-		if dbReq.Added{
+		if dbReq.Added {
 			added++
 		}
-		if dbReq.Updated{
+		if dbReq.Updated {
 			updated++
 		}
 	}
@@ -502,7 +502,7 @@ func qlInsert(req *QLInsert, tx *DBTX) (uint64, uint64, error) {
 }
 
 // stmt: delete
-func qlDelete(req *QLDelete, tx*DBTX) (uint64, error) {
+func qlDelete(req *QLDelete, tx *DBTX) (uint64, error) {
 	records, err := qlScan(&req.QLScan, tx)
 	if err != nil {
 		return 0, err
@@ -525,4 +525,55 @@ func qlDelete(req *QLDelete, tx*DBTX) (uint64, error) {
 	}
 
 	return deleted, nil
+}
+
+// stmt Update
+func qlUpdate(req *QLUPdate, tx *DBTX) (uint64, error) {
+	// no update to primary key
+	assert(len(req.Names) == len(req.Values))
+
+	tdef := getTableDef(tx, req.Table)
+	for _, col := range req.Names {
+		if slices.Index(tdef.Cols, col) < 0 {
+			return 0, fmt.Errorf("unknown col.: %s", col)
+		}
+		if slices.Index(tdef.Indexes[0], col) >= 0 {
+			return 0, errors.New("cannot update the primary key")
+		}
+	}
+
+	records, err := qlScan(&req.QLScan, tx)
+	if err != nil {
+		return 0, err
+	}
+
+	updated := uint64(0)
+	for ; records.Valid(); records.Next() {
+		// old record
+		rec := Record{}
+		if err := records.Deref(&rec); err != nil {
+			return 0, err
+		}
+
+		// new record
+		vals, err := qlEvelMulti(rec, req.Values)
+		if err != nil {
+			return 0, err
+		}
+		for i, col := range req.Names {
+			rec.Vals[slices.Index(tdef.Cols, col)] = vals[i]
+		}
+
+		// perform updtae
+		dbReq :=DBUpdateReq{Record: rec, Mode: MODE_UPDATE_ONLY}
+		if _, err := tx.Set(req.Table, &dbReq); err != nil {
+			return 0, err
+		}
+
+		if dbReq.Updated {
+			updated++
+		}
+	}
+
+	return 0, nil
 }
