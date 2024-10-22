@@ -500,3 +500,29 @@ func qlInsert(req *QLInsert, tx *DBTX) (uint64, uint64, error) {
 
 	return added, updated, nil
 }
+
+// stmt: delete
+func qlDelete(req *QLDelete, tx*DBTX) (uint64, error) {
+	records, err := qlScan(&req.QLScan, tx)
+	if err != nil {
+		return 0, err
+	}
+
+	tdef := getTableDef(tx, req.Table)
+	deleted := uint64(0)
+
+	for ; records.Valid(); records.Next() {
+		rec := Record{}
+		if err := records.Deref(&rec); err != nil {
+			return 0, err
+		}
+		deleted++
+
+		vals, err := getValues(tdef, rec, tdef.Indexes[0])
+		assert(err == nil)
+		deleted, err := tx.Delete(req.Table, Record{tdef.Indexes[0], vals})
+		assert(err == nil && deleted)
+	}
+
+	return deleted, nil
+}
