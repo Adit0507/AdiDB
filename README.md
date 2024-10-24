@@ -1,3 +1,5 @@
+
+![9ad3c058-d029-47c4-a2df-68cbcbf41e0a](https://github.com/user-attachments/assets/4b77a097-ea68-4e95-85f0-639785b93c7b)
 # AdiDB - Building a Database from Scratch
 
 ## Introduction
