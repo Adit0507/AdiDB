@@ -1,4 +1,4 @@
-package main
+package btree_iter
 
 import (
 	"fmt"

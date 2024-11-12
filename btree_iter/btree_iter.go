@@ -1,10 +1,13 @@
-package main
+package btree_iter
 
-import "bytes"
+import (
+	"bytes"
+	"github.com/Adit0507/AdiDB/btree"
+)
 
 type BIter struct {
-	tree *BTree
-	path []BNode
+	tree *btree.BTree
+	path []btree.BNode
 	pos  []uint16
 }
 
@@ -56,23 +59,29 @@ func iterNext(iter *BIter, level int) {
 	}
 	if level+1 < len(iter.pos) { //update child node
 		node := iter.path[level]
-		kid := BNode(iter.tree.get(node.getPtr(iter.pos[level])))
+		kid := btree.BNode(iter.tree.get(node.getPtr(iter.pos[level])))
 		iter.path[level+1] = kid
 		iter.pos[level+1] = 0
 	}
 }
 
 // find closest position that is less or equal to input key
-func (tree *BTree) SeekLE(key []byte) *BIter {
+func (tree BTreeWrap) SeekLE(key []byte) *BIter {
 	iter := &BIter{tree: tree}
 	for ptr := tree.root; ptr != 0; {
-		node := BNode(tree.get(ptr))
+		node := (tree.get(ptr))
 		idx := nodeLookupLE(node, key)
 		iter.path = append(iter.path, node)
 		iter.pos = append(iter.pos, idx)
 		ptr = node.getPtr(idx)
 	}
 	return iter
+}
+
+func assert(cond bool) {
+	if !cond {
+		panic("assertion failure")
+	}
 }
 
 // get current KV pair
@@ -87,7 +96,7 @@ func (iter *BIter) Deref() ([]byte, []byte) {
 
 func iterIsEnd(iter *BIter) bool {
 	last := len(iter.path) - 1
-	return last < 0 || iter.pos[last] >= iter.path[last].nkeys()
+	return last < 0 || iter.pos[last] >= uint16(iter.path[last].nkeys)
 }
 
 // precondition of Dref()
@@ -120,7 +129,11 @@ func cmpOk(key []byte, cmp int, ref []byte) bool {
 	}
 }
 
-func (tree *BTree) Seek(key []byte, cmp int) *BIter {
+type BTreeWrap struct{
+	*btree.BTree
+}
+
+func (tree BTreeWrap) Seek(key []byte, cmp int) *BIter {
 	iter := tree.SeekLE(key)
 	assert(iterIsFirst(iter) || !iterIsEnd(iter))
 	if cmp != CMP_LE {

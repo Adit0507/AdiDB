@@ -1,7 +1,6 @@
-//go:build (linux && 386) || (darwin && !cgo)
-// +build linux,386 darwin,!cgo
-	
-package main
+package kv
+
+// go:build (linux && 386) || (darwin && !cgo)
 
 import (
 	"bytes"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/Adit0507/AdiDB/btree"
+	"github.com/Adit0507/AdiDB/freelist"
 	"golang.org/x/sys/unix"
 )
 
@@ -21,8 +22,8 @@ type KV struct {
 	Fsync func(int) error // overridable; for testing
 	// internals
 	fd   int
-	tree BTree
-	free FreeList
+	tree btree.BTree
+	free freelist.FreeList
 	mmap struct {
 		total  int      // mmap size, can be larger than the file size
 		chunks [][]byte // multiple mmaps, can be non-continuous
@@ -67,9 +68,15 @@ func mmapRead(ptr uint64, chunks [][]byte) []byte {
 	panic("bad ptr")
 }
 
+func assert(cond bool) {
+	if !cond {
+		panic("assertion failure")
+	}
+}
+
 // `BTree.new`, allocate a new page.
 func (db *KV) pageAlloc(node []byte) uint64 {
-	assert(len(node) == BTREE_PAGE_SIZE)
+	assert(len(node) == btree.BTREE_PAGE_SIZE)
 	if ptr := db.free.PopHead(); ptr != 0 { // try the free list
 		assert(db.page.updates[ptr] == nil)
 		db.page.updates[ptr] = node
@@ -80,7 +87,7 @@ func (db *KV) pageAlloc(node []byte) uint64 {
 
 // `FreeList.new`, append a new page.
 func (db *KV) pageAppend(node []byte) uint64 {
-	assert(len(node) == BTREE_PAGE_SIZE)
+	assert(len(node) == btree.BTREE_PAGE_SIZE)
 	ptr := db.page.flushed + db.page.nappend
 	db.page.nappend++
 	assert(db.page.updates[ptr] == nil)
@@ -95,7 +102,7 @@ func (db *KV) pageWrite(ptr uint64) []byte {
 		return node // pending update
 	}
 	// initialize from the file
-	node := make([]byte, BTREE_PAGE_SIZE)
+	node := make([]byte, btree.BTREE_PAGE_SIZE)
 	if !(ptr == 1 && db.page.flushed == 2) {
 		// special case: page 1 doesn't exist after creating an empty DB
 		copy(node, mmapRead(ptr, db.mmap.chunks))
@@ -199,7 +206,7 @@ func saveMeta(db *KV) []byte {
 }
 
 func readRoot(db *KV, fileSize int64) error {
-	if fileSize%BTREE_PAGE_SIZE != 0 {
+	if fileSize%btree.BTREE_PAGE_SIZE != 0 {
 		return errors.New("file is not a multiple of pages")
 	}
 	if fileSize == 0 { // empty file
@@ -218,7 +225,7 @@ func readRoot(db *KV, fileSize int64) error {
 	// verify the page
 	bad := !bytes.Equal([]byte(DB_SIG), data[:16])
 	// pointers are within range?
-	maxpages := uint64(fileSize / BTREE_PAGE_SIZE)
+	maxpages := uint64(fileSize / btree.BTREE_PAGE_SIZE)
 	bad = bad || !(0 < db.page.flushed && db.page.flushed <= maxpages)
 	bad = bad || !(0 < db.tree.root && db.tree.root < db.page.flushed)
 	bad = bad || !(0 < db.free.headPage && db.free.headPage < db.page.flushed)
@@ -308,13 +315,13 @@ func updateOrRevert(db *KV, meta []byte) error {
 
 func writePages(db *KV) error {
 	// extend the mmap if needed
-	size := (db.page.flushed + db.page.nappend) * BTREE_PAGE_SIZE
+	size := (db.page.flushed + db.page.nappend) * btree.BTREE_PAGE_SIZE
 	if err := extendMmap(db, int(size)); err != nil {
 		return err
 	}
 	// write data pages to the file
 	for ptr, node := range db.page.updates {
-		offset := int64(ptr * BTREE_PAGE_SIZE)
+		offset := int64(ptr * btree.BTREE_PAGE_SIZE)
 		if _, err := unix.Pwrite(db.fd, node, offset); err != nil {
 			return err
 		}

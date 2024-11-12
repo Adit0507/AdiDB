@@ -1,4 +1,4 @@
-package main
+package table
 
 import (
 	"bytes"
@@ -7,6 +7,11 @@ import (
 	"fmt"
 	"slices"
 	"sync"
+
+	"github.com/Adit0507/AdiDB/btree_iter"
+	"github.com/Adit0507/AdiDB/btree"
+	"github.com/Adit0507/AdiDB/kv"
+	"github.com/Adit0507/AdiDB/transactions"
 )
 
 const (
@@ -18,13 +23,13 @@ const (
 
 type DB struct {
 	Path   string
-	kv     KV
+	kv     kv.KV
 	mu     sync.Mutex
 	tables map[string]*TableDef
 }
 
 type DBTX struct {
-	kv KVTX
+	kv transactions.KVTX
 	db *DB
 }
 
@@ -41,11 +46,11 @@ func (db *DB) Abort(tx *DBTX) {
 	db.kv.Abort(&tx.kv)
 }
 
-func (tx *DBTX) Save(save *TXSave) {
+func (tx *DBTX) Save(save *transactions.TXSave) {
 	tx.kv.Save(save)
 }
 
-func (tx*DBTX) Revert(save *TXSave) {
+func (tx*DBTX) Revert(save *transactions.TXSave) {
 	tx.kv.Revert(save)
 }
 
@@ -115,6 +120,12 @@ var TDEF_TABLE = &TableDef{
 var INTERNAL_TABLES map[string]*TableDef = map[string]*TableDef{
 	"@meta":  TDEF_META,
 	"@table": TDEF_TABLE,
+}
+
+func assert(cond bool ){
+	if !cond {
+		panic("assertion failure")
+	}
 }
 
 // reorder records to defined col. order
@@ -214,7 +225,7 @@ func encodeValues(out []byte, vals []Value) []byte {
 // for input range, which can be prefix of index key
 func encodeKeyPartial(out []byte, prefix uint32, vals []Value, cmp int) []byte {
 	out = encodeKey(out, prefix, vals)
-	if cmp == CMP_GT || cmp == CMP_LE {
+	if cmp == btree_iter.CMP_GT || cmp == btree_iter.CMP_LE {
 		out = append(out, 0xff)
 	}
 	return out
@@ -293,8 +304,8 @@ func dbGet(tx *DBTX, tdef *TableDef, rec *Record) (bool, error) {
 
 	//scan operation
 	sc := Scanner{
-		Cmp1: CMP_GE,
-		Cmp2: CMP_LE,
+		Cmp1: btree_iter.CMP_GE,
+		Cmp2: btree_iter.CMP_LE,
 		Key1: Record{tdef.Indexes[0], vals},
 		Key2: Record{tdef.Indexes[0], vals},
 	}
@@ -538,13 +549,13 @@ func (tx *DBTX) Set(table string, dbreq *DBUpdateReq) (bool, error) {
 }
 
 func (tx *DBTX) Insert(table string, rec Record) (bool, error) {
-	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: MODE_INSERT_ONLY})
+	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: btree.MODE_INSERT_ONLY})
 }
 func (tx *DBTX) Update(table string, rec Record) (bool, error) {
-	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: MODE_UPDATE_ONLY})
+	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: btree.MODE_UPDATE_ONLY})
 }
 func (tx *DBTX) Upsert(table string, rec Record) (bool, error) {
-	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: MODE_UPSERT})
+	return tx.Set(table, &DBUpdateReq{Record: rec, Mode: btree.MODE_UPSERT})
 }
 
 // delete a record by primary key
@@ -608,7 +619,7 @@ type Scanner struct {
 	tx     *DBTX
 	index  int
 	tdef   *TableDef
-	iter   KVIter
+	iter   transactions.KVIter
 	keyEnd []byte
 }
 

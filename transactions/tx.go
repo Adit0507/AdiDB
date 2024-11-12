@@ -1,17 +1,21 @@
-package main
+package transactions
 
 import (
 	"bytes"
 	"errors"
 	"runtime"
 	"slices"
+
+	"github.com/Adit0507/AdiDB/btree"
+	"github.com/Adit0507/AdiDB/btree_iter"
+	"github.com/Adit0507/AdiDB/kv"
 )
 
 type KVTX struct {
-	snapshot BTree // read-only snapshot(copy on wrrite)
+	snapshot btree.BTree // read-only snapshot(copy on wrrite)
 	version  uint64
 	// local updates are held in an memory B+tree
-	pending BTree      //captured KV updates
+	pending btree.BTree     //captured KV updates
 	reads   []KeyRange //list of involved interval of keys for dtecting conflicts
 	// cheks for conflict even if update changes nothing
 	updateAttempted bool
@@ -42,8 +46,14 @@ const (
 	FLAG_UPDATED = byte(2)
 )
 
+func assert(cond bool) {
+	if !cond{
+		panic("assetion failure")
+	}
+}
+
 // begin a transaction
-func (kv *KV) Begin(tx *KVTX) {
+func (kv *kv.KV) Begin(tx *KVTX) {
 	kv.mutex.Lock()
 	defer kv.mutex.Unlock()
 
@@ -66,7 +76,7 @@ func (kv *KV) Begin(tx *KVTX) {
 }
 
 // rollback on error
-func (kv *KV) Commit(tx *KVTX) error {
+func (kv *kv.KV) Commit(tx *KVTX) error {
 	assert(!tx.done)
 	tx.done = true
 	kv.mutex.Lock()
@@ -81,7 +91,7 @@ func (kv *KV) Commit(tx *KVTX) error {
 	meta, root := saveMeta(kv), kv.tree.root
 	kv.free.curVer = kv.version + 1 //transfer current updates to current tree
 	writes := []KeyRange(nil)
-	for iter := tx.pending.Seek(nil, CMP_GT); iter.Valid(); iter.Next() {
+	for iter := tx.pending.Seek(nil, btree_iter.CMP_GT); iter.Valid(); iter.Next() {
 		modified := false
 		key, val := iter.Deref()
 		oldVal, isOld := tx.snapshot.Get(key)
@@ -124,8 +134,12 @@ func (kv *KV) Commit(tx *KVTX) error {
 	return nil
 }
 
+type KVWrap struct{
+	*kv.KV
+}
+
 // end transaction
-func (kv *KV) Abort(tx *KVTX) {
+func (kv KVWrap) Abort(tx *KVTX) {
 	assert(!tx.done)
 	tx.done = true
 
@@ -136,7 +150,7 @@ func (kv *KV) Abort(tx *KVTX) {
 
 var ErrorConflict = errors.New("cannot commit due to conflict")
 
-func detectConflicts(kv *KV, tx *KVTX) bool {
+func detectConflicts(kv KVWrap, tx *KVTX) bool {
 	slices.SortFunc(tx.reads, func(r1, r2 KeyRange) int {
 		return bytes.Compare(r1.start, r2.start)
 	})
@@ -168,7 +182,7 @@ func sortedRangesOverlap(s1, s2 []KeyRange) bool {
 }
 
 // routines when exiting a transacion
-func txFinalize(kv *KV, tx *KVTX) {
+func txFinalize(kv *KVWrap, tx *KVTX) {
 	idx := slices.Index(kv.ongoing, tx.version)
 	last := len(kv.ongoing) - 1
 	kv.ongoing[idx], kv.ongoing = kv.ongoing[last], kv.ongoing[:last]
@@ -202,8 +216,8 @@ type KVIter interface {
 
 // combines pending updates and the snapshot
 type CombinedIterator struct {
-	top *BIter //kvtx pending
-	bot *BIter //kvtx snapshot
+	top *btree_iter.BIter //kvtx pending
+	bot *btree_iter.BIter //kvtx snapshot
 	dir int    //+1 for greater or greater than, -1 for less or less than
 
 	//end of range
@@ -306,10 +320,10 @@ func (tx *KVTX) Update(req *UpdateReq) (bool, error) {
 	tx.updateAttempted = true
 
 	old, exists := tx.Get(req.Key)
-	if req.Mode == MODE_UPDATE_ONLY && !exists {
+	if req.Mode == btree.MODE_UPDATE_ONLY && !exists {
 		return false, nil
 	}
-	if req.Mode == MODE_INSERT_ONLY && exists {
+	if req.Mode == btree.MODE_INSERT_ONLY && exists {
 		return false, nil
 	}
 	if exists && bytes.Equal(old, req.Val) {

@@ -1,17 +1,20 @@
-package main
+package ql
 
 import (
 	"fmt"
 	"math"
 	"strings"
 	"unicode"
+
+	"github.com/Adit0507/AdiDB/btree"
+	"github.com/Adit0507/AdiDB/table"
 )
 
 const (
 	// syntax tree node types
 	QL_UNINIT = 0
-	QL_STR   = TYPE_BYTES
-	QL_I64    = TYPE_INT64
+	QL_STR   = table.TYPE_BYTES
+	QL_I64    = table.TYPE_INT64
 	QL_CMP_GE = 10 // >=
 	QL_CMP_GT = 11 // >
 	QL_CMP_LT = 12 // <
@@ -75,7 +78,7 @@ type QLDelete struct {
 }
 
 type QLCreateTable struct {
-	Def TableDef
+	Def table.TableDef
 }
 
 type Parser struct {
@@ -557,11 +560,11 @@ func pStmt(p *Parser) (r interface{}) {
 	case pKeyword(p, "select"):
 		r = pSelect(p)
 	case pKeyword(p, "insert", "into"):
-		r = pInsert(p, MODE_INSERT_ONLY)
+		r = pInsert(p, btree.MODE_INSERT_ONLY)
 	case pKeyword(p, "replace", "into"):
-		r = pInsert(p, MODE_UPDATE_ONLY)
+		r = pInsert(p, btree.MODE_UPDATE_ONLY)
 	case pKeyword(p, "upsert", "into"):
-		r = pInsert(p, MODE_UPSERT)
+		r = pInsert(p, btree.MODE_UPSERT)
 	case pKeyword(p, "update"):
 		r = pUpdate(p)
 	case pKeyword(p, "delete", "from"):

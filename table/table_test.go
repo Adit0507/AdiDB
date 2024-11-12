@@ -1,4 +1,4 @@
-package main
+package table
 
 import (
 	"math"
@@ -7,6 +7,7 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/Adit0507/AdiDB/btree_iter"
 	is "github.com/stretchr/testify/require"
 )
 
@@ -269,7 +270,7 @@ func TestTableScan(t *testing.T) {
 	{
 		rec := Record{} // empty
 		req := Scanner{
-			Cmp1: CMP_GE, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GE, Cmp2: btree_iter.CMP_LE,
 			Key1: rec, Key2: rec,
 		}
 		err := tx.Scan("tbl_test", &req)
@@ -305,38 +306,38 @@ func TestTableScan(t *testing.T) {
 
 			scanners := []Scanner{
 				{
-					Cmp1: CMP_GE,
-					Cmp2: CMP_LE,
+					Cmp1: btree_iter.CMP_GE,
+					Cmp2: btree_iter.CMP_LE,
 					Key1: tmpkey(i),
 					Key2: tmpkey(j),
 				},
 				{
-					Cmp1: CMP_GE,
-					Cmp2: CMP_LE,
+					Cmp1: btree_iter.CMP_GE,
+					Cmp2: btree_iter.CMP_LE,
 					Key1: tmpkey(i - 1),
 					Key2: tmpkey(j + 1),
 				},
 				{
-					Cmp1: CMP_GT,
-					Cmp2: CMP_LT,
+					Cmp1: btree_iter.CMP_GT,
+					Cmp2: btree_iter.CMP_LT,
 					Key1: tmpkey(i - 1),
 					Key2: tmpkey(j + 1),
 				},
 				{
-					Cmp1: CMP_GT,
-					Cmp2: CMP_LT,
+					Cmp1: btree_iter.CMP_GT,
+					Cmp2: btree_iter.CMP_LT,
 					Key1: tmpkey(i - 2),
 					Key2: tmpkey(j + 2),
 				},
 				{
-					Cmp1: CMP_GE,
-					Cmp2: CMP_LE,
+					Cmp1: btree_iter.CMP_GE,
+					Cmp2: btree_iter.CMP_LE,
 					Key1: i2key(i),
 					Key2: i2key(j),
 				},
 				{
-					Cmp1: CMP_GT,
-					Cmp2: CMP_LT,
+					Cmp1: btree_iter.CMP_GT,
+					Cmp2: btree_iter.CMP_LT,
 					Key1: i2key(i - 2),
 					Key2: i2key(j + 2),
 				},
@@ -407,7 +408,7 @@ func TestTableIndex(t *testing.T) {
 		rec := Record{}
 		rec.AddInt64("i2", 2)
 		req := Scanner{
-			Cmp1: CMP_GE, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GE, Cmp2: btree_iter.CMP_LE,
 			Key1: rec, Key2: rec,
 		}
 		err := tx.Scan("tbl_test", &req)
@@ -430,7 +431,7 @@ func TestTableIndex(t *testing.T) {
 		rec2 := Record{}
 		rec2.AddInt64("i2", 4)
 		req := Scanner{
-			Cmp1: CMP_GT, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GT, Cmp2: btree_iter.CMP_LE,
 			Key1: rec1, Key2: rec2,
 		}
 		err := tx.Scan("tbl_test", &req)
@@ -445,7 +446,7 @@ func TestTableIndex(t *testing.T) {
 		rec := Record{}
 		rec.AddInt64("i2", 2)
 		req := Scanner{
-			Cmp1: CMP_GE, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GE, Cmp2: btree_iter.CMP_LE,
 			Key1: rec, Key2: rec,
 		}
 		err := tx.Scan("tbl_test", &req)
@@ -459,7 +460,7 @@ func TestTableIndex(t *testing.T) {
 		rec := Record{}
 		rec.AddInt64("i2", 1)
 		req := Scanner{
-			Cmp1: CMP_GE, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GE, Cmp2: btree_iter.CMP_LE,
 			Key1: rec, Key2: rec,
 		}
 		err := tx.Scan("tbl_test", &req)
@@ -480,7 +481,7 @@ func TestTableIndex(t *testing.T) {
 		rec := Record{}
 		rec.AddInt64("i2", 1)
 		req := Scanner{
-			Cmp1: CMP_GE, Cmp2: CMP_LE,
+			Cmp1: btree_iter.CMP_GE, Cmp2: btree_iter.CMP_LE,
 			Key1: rec, Key2: rec,
 		}
 		err := tx.Scan("tbl_test", &req)
