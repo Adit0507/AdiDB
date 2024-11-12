@@ -1,4 +1,4 @@
-module db
+module github.com/Adit0507/AdiDB
 
 go 1.22.5
 
