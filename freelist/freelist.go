@@ -1,13 +1,23 @@
-package main
+package freelist
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"github.com/Adit0507/AdiDB/btree"
+)
 
 // node format:
 // |next| pointers | unused
 type LNode []byte
 
 const FREE_LIST_HEADER = 8
-const FREE_LIST_CAP = (BTREE_PAGE_SIZE - FREE_LIST_HEADER) / 8
+const FREE_LIST_CAP = (btree.BTREE_PAGE_SIZE - FREE_LIST_HEADER) / 8
+
+func assert(cond bool) {
+	if !cond {
+		panic("assertion failure")
+	}
+}
+
 
 // settin& gettin
 func (node LNode) getNext() uint64 {
@@ -87,7 +97,7 @@ func (fl *FreeList) PushTail(ptr uint64) {
 		next, head := flPop(fl)
 		if next == 0 {
 			// allocate new node by appending
-			next = fl.new(make([]byte, BTREE_PAGE_SIZE))
+			next = fl.new(make([]byte, btree.BTREE_PAGE_SIZE))
 		}
 
 		// link to new tail node

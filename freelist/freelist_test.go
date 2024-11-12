@@ -1,8 +1,9 @@
-package main
+package freelist
 
 import (
 	"slices"
 	"testing"
+	"github.com/Adit0507/AdiDB/btree"
 )
 
 type L struct {
@@ -14,7 +15,7 @@ type L struct {
 
 func newL() *L {
 	pages := map[uint64][]byte{}
-	pages[1] = make([]byte, BTREE_PAGE_SIZE) 
+	pages[1] = make([]byte, btree.BTREE_PAGE_SIZE) 
 	append := uint64(1000)                   
 	return &L{
 		free: FreeList{
@@ -59,7 +60,7 @@ func flDump(free *FreeList) (list []uint64, nodes []uint64) {
 
 func (l *L) push(ptr uint64) {
 	assert(l.pages[ptr] == nil)
-	l.pages[ptr] = make([]byte, BTREE_PAGE_SIZE)
+	l.pages[ptr] = make([]byte, btree.BTREE_PAGE_SIZE)
 	l.free.PushTail(ptr)
 	l.added = append(l.added, ptr)
 }
